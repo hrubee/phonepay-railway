@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Deployment Timestamp: 2026-05-15 18:14
+// Deployment Timestamp: 2026-05-15 18:17
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -83,24 +83,28 @@ app.post('/pay', async (req, res) => {
 
         // Correct V2 Payload Structure
         const payload = {
-            merchantId: MERCHANT_ID,
+            merchantId: CLIENT_ID, // Use the SU... ID for Hermes
             merchantOrderId: orderId,
             amount: amount * 100, // paise
-            merchantUserId: userId || `U${Date.now()}`,
-            mobileNumber: cleanMobile,
-            redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`,
-            redirectMode: 'POST',
-            callbackUrl: process.env.CALLBACK_URL
-            // OMITTING paymentInstrument for v2 default flow
+            paymentFlow: {
+                type: 'PG_CHECKOUT',
+                merchantUrls: {
+                    redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`
+                }
+            },
+            metaInfo: {
+                mobileNumber: cleanMobile,
+                merchantUserId: userId || `U${Date.now()}`
+            }
         };
 
-        console.log(`Initiating Payment for ${MERCHANT_ID} / ${orderId}`);
+        console.log(`Initiating Payment via Hermes for ${CLIENT_ID} / ${orderId}`);
 
-        const response = await axios.post(`${BASE_URL}/checkout/v2/pay`, payload, {
+        const response = await axios.post(`https://api.phonepe.com/apis/hermes/checkout/v2/pay`, payload, {
             headers: {
                 'Authorization': `O-Bearer ${accessToken}`,
-                'X-MERCHANT-ID': MERCHANT_ID,
-                'X-CLIENT-ID': CLIENT_ID, // MANDATORY FOR SOME V2 ACCOUNTS
+                'X-MERCHANT-ID': CLIENT_ID, // Use SU... for consistency with Hermes
+                'X-CLIENT-ID': CLIENT_ID,
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             }
