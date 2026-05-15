@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Deployment Timestamp: 2026-05-15 17:55
+// Deployment Timestamp: 2026-05-15 18:07
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -100,7 +100,8 @@ app.post('/pay', async (req, res) => {
         const response = await axios.post(`${BASE_URL}/checkout/v2/pay`, payload, {
             headers: {
                 'Authorization': `O-Bearer ${accessToken}`,
-                'X-MERCHANT-ID': MERCHANT_ID, // MANDATORY HEADER
+                'X-MERCHANT-ID': MERCHANT_ID,
+                'X-CLIENT-ID': CLIENT_ID, // MANDATORY FOR SOME V2 ACCOUNTS
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             }
@@ -141,6 +142,7 @@ app.get('/status/:orderId', async (req, res) => {
             headers: {
                 'Authorization': `O-Bearer ${accessToken}`,
                 'X-MERCHANT-ID': MERCHANT_ID,
+                'X-CLIENT-ID': CLIENT_ID, // CONSISTENCY
                 'Accept': 'application/json'
             }
         });
