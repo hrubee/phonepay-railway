@@ -93,13 +93,18 @@ app.post('/pay', async (req, res) => {
             amount: amount * 100, // paise
             mobileNumber: mobileNumber,
             userId: userId || `U${Date.now()}`,
-            redirectUrl: `https://${req.get('host')}/status/${orderId}`,
+            redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`,
             redirectMode: 'REDIRECT',
             callbackUrl: process.env.CALLBACK_URL,
             paymentInstrument: {
                 type: 'PAY_PAGE'
             }
         };
+
+        console.log('Sending Payment Payload:', JSON.stringify({
+            ...payload,
+            mobileNumber: '******' + (mobileNumber ? mobileNumber.slice(-4) : '')
+        }, null, 2));
 
         const response = await axios.post(`${BASE_URL}/checkout/v2/pay`, payload, {
             headers: {
