@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Deployment Timestamp: 2026-05-15 18:17
+// Deployment Timestamp: 2026-05-15 18:20
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -83,27 +83,25 @@ app.post('/pay', async (req, res) => {
 
         // Correct V2 Payload Structure
         const payload = {
-            merchantId: CLIENT_ID, // Use the SU... ID for Hermes
+            merchantId: MERCHANT_ID,
             merchantOrderId: orderId,
             amount: amount * 100, // paise
-            paymentFlow: {
-                type: 'PG_CHECKOUT',
-                merchantUrls: {
-                    redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`
-                }
-            },
-            metaInfo: {
-                mobileNumber: cleanMobile,
-                merchantUserId: userId || `U${Date.now()}`
+            merchantUserId: userId || `U${Date.now()}`,
+            mobileNumber: cleanMobile,
+            redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`,
+            redirectMode: 'REDIRECT',
+            callbackUrl: process.env.CALLBACK_URL,
+            paymentInstrument: {
+                type: 'PAY_PAGE'
             }
         };
 
-        console.log(`Initiating Payment via Hermes for ${CLIENT_ID} / ${orderId}`);
+        console.log(`Initiating Hybrid Payment for ${MERCHANT_ID} / ${orderId}`);
 
-        const response = await axios.post(`https://api.phonepe.com/apis/hermes/checkout/v2/pay`, payload, {
+        const response = await axios.post(`${BASE_URL}/v1/pay`, payload, {
             headers: {
                 'Authorization': `O-Bearer ${accessToken}`,
-                'X-MERCHANT-ID': CLIENT_ID, // Use SU... for consistency with Hermes
+                'X-MERCHANT-ID': MERCHANT_ID,
                 'X-CLIENT-ID': CLIENT_ID,
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
