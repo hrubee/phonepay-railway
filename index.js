@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Deployment Timestamp: 2026-05-15 18:13
+// Deployment Timestamp: 2026-05-15 18:14
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -62,6 +62,7 @@ async function getAccessToken() {
 
         cachedToken = response.data.access_token;
         tokenExpiry = Date.now() + (response.data.expires_in * 1000);
+        console.log(`Token obtained successfully. Expires in ${response.data.expires_in}s`);
         return cachedToken;
     } catch (error) {
         console.error('OAuth Token Error:', error.response ? error.response.data : error.message);
