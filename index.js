@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Deployment Timestamp: 2026-05-15 18:31
+// Deployment Timestamp: 2026-05-15 18:51
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -78,26 +78,27 @@ app.post('/pay', async (req, res) => {
         const { amount, mobileNumber, userId } = req.body;
         const accessToken = await getAccessToken();
 
-        const orderId = `O${Date.now()}`;
+        const orderId = `MT${Date.now()}${Math.floor(Math.random() * 100)}`; // 18+ characters
         const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
 
-        // Correct V2 Payload Structure
         const payload = {
             merchantId: MERCHANT_ID,
             merchantOrderId: orderId,
             amount: amount * 100, // paise
-            merchantUserId: userId || `U${Date.now()}`,
-            mobileNumber: cleanMobile,
-            redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`,
-            redirectMode: 'REDIRECT',
-            callbackUrl: process.env.CALLBACK_URL,
-            paymentInstrument: {
-                type: 'PAY_PAGE'
+            paymentFlow: {
+                type: 'PG_CHECKOUT',
+                merchantUrls: {
+                    redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`
+                }
+            },
+            metaInfo: {
+                mobileNumber: cleanMobile,
+                merchantUserId: userId || `U${Date.now()}`
             }
         };
 
-        const payUrl = `https://api.phonepe.com/apis/hermes/pg/v1/pay`;
-        console.log(`Initiating Hybrid Payment at: ${payUrl}`);
+        const payUrl = `${BASE_URL}/checkout/v2/pay`;
+        console.log(`Initiating v2 Payment at: ${payUrl} for ID: ${orderId}`);
 
         const response = await axios.post(payUrl, payload, {
             headers: {
