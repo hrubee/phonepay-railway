@@ -52,6 +52,7 @@ async function getAccessToken() {
     try {
         const params = new URLSearchParams();
         params.append('client_id', CLIENT_ID);
+        params.append('client_version', CLIENT_VERSION);
         params.append('client_secret', CLIENT_SECRET);
         params.append('grant_type', 'client_credentials');
 
@@ -59,8 +60,7 @@ async function getAccessToken() {
         
         const response = await axios.post(AUTH_URL, params, {
             headers: { 
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CLIENT-ID': CLIENT_ID
+                'Content-Type': 'application/x-www-form-urlencoded'
             }
         });
 
