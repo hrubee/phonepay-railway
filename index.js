@@ -18,7 +18,11 @@ const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const CLIENT_VERSION = process.env.CLIENT_VERSION || 'v1';
 const MERCHANT_ID = process.env.MERCHANT_ID;
 
-const IS_PRODUCTION = process.env.PHONEPE_ENV === 'production';
+const PHONEPE_ENV = (process.env.PHONEPE_ENV || 'sandbox').trim().toLowerCase();
+const IS_PRODUCTION = PHONEPE_ENV === 'production';
+
+console.log(`[PhonePe] Running in ${IS_PRODUCTION ? 'PRODUCTION' : 'SANDBOX'} mode`);
+
 const BASE_URL = IS_PRODUCTION 
     ? 'https://api.phonepe.com/apis/pg' 
     : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
