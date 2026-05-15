@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
+const crypto = require('crypto');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
@@ -12,181 +13,147 @@ app.use(express.static('public'));
 
 const PORT = process.env.PORT || 3000;
 
-// PhonePe V2 Config
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const CLIENT_VERSION = process.env.CLIENT_VERSION || 'v1';
+// PhonePe Standard Checkout Config
 const MERCHANT_ID = process.env.MERCHANT_ID;
-
+const SALT_KEY = process.env.SALT_KEY;
+const SALT_INDEX = process.env.SALT_INDEX || '1';
 const PHONEPE_ENV = (process.env.PHONEPE_ENV || 'sandbox').trim().toLowerCase();
 const IS_PRODUCTION = PHONEPE_ENV === 'production';
 
-console.log(`[PhonePe] Running in ${IS_PRODUCTION ? 'PRODUCTION' : 'SANDBOX'} mode`);
+console.log(`[PhonePe Standard] Running in ${IS_PRODUCTION ? 'PRODUCTION' : 'SANDBOX'} mode`);
 
 const BASE_URL = IS_PRODUCTION 
-    ? 'https://api.phonepe.com/apis/pg' 
+    ? 'https://api.phonepe.com/apis/hermes' 
     : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
 
-const AUTH_URL = IS_PRODUCTION
-    ? 'https://api.phonepe.com/apis/identity-manager/v1/oauth/token'
-    : 'https://api-preprod.phonepe.com/apis/pg-sandbox/identity-manager/v1/oauth/token';
-
-// Token Cache
-let cachedToken = null;
-let tokenExpiry = 0;
-
 /**
- * Fetch OAuth Access Token (O-Bearer)
+ * Generate X-VERIFY checksum for PhonePe
  */
-async function getAccessToken() {
-    if (cachedToken && Date.now() < tokenExpiry - 60000) {
-        return cachedToken;
-    }
-
-    if (!CLIENT_ID || CLIENT_ID === 'YOUR_CLIENT_ID' || !CLIENT_SECRET || CLIENT_SECRET === 'YOUR_CLIENT_SECRET') {
-        console.error('CRITICAL: PhonePe Credentials are missing or using placeholders!');
-        console.error('Check your Railway Variables tab.');
-        throw new Error('Missing Credentials');
-    }
-
-    try {
-        // Strict URL encoding for all parameters
-        const payload = `grant_type=client_credentials&client_id=${encodeURIComponent(CLIENT_ID)}&client_secret=${encodeURIComponent(CLIENT_SECRET)}&client_version=${encodeURIComponent(CLIENT_VERSION)}`;
-
-        console.log(`OAuth Request to: ${AUTH_URL}`);
-        
-        const response = await axios.post(AUTH_URL, payload, {
-            headers: { 
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json'
-            }
-        });
-
-        cachedToken = response.data.access_token;
-        tokenExpiry = Date.now() + (response.data.expires_in * 1000);
-        return cachedToken;
-    } catch (error) {
-        if (error.response) {
-            console.error('OAuth Token Detailed Error:', JSON.stringify(error.response.data, null, 2));
-        } else {
-            console.error('OAuth Token Error:', error.message);
-        }
-        throw new Error('Failed to obtain PhonePe O-Bearer token');
-    }
+function generateChecksum(payload, endpoint) {
+    const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
+    const stringToHash = base64Payload + endpoint + SALT_KEY;
+    const sha256 = crypto.createHash('sha256').update(stringToHash).digest('hex');
+    return `${sha256}###${SALT_INDEX}`;
 }
 
 /**
- * Initiate Payment (Checkout v2)
+ * Initiate Payment (Standard Checkout)
  */
 app.post('/pay', async (req, res) => {
     try {
         const { amount, mobileNumber, userId } = req.body;
-        const merchantOrderId = 'ORD' + Date.now();
-        const token = await getAccessToken();
+        
+        if (!MERCHANT_ID || !SALT_KEY) {
+            return res.status(500).json({ error: 'Merchant credentials missing' });
+        }
 
-        // PhonePe Checkout v2 Payload
-        const data = {
-            merchantOrderId: merchantOrderId,
-            amount: amount * 100, // in paise
-            expireAfter: 1200, // 20 mins
-            paymentFlow: {
-                type: 'PG_CHECKOUT',
-                merchantUrls: {
-                    redirectUrl: process.env.REDIRECT_URL || `http://localhost:${PORT}/callback`,
-                }
-            },
-            metaInfo: {
-                udf1: userId || 'anonymous',
-                udf2: mobileNumber || 'not_provided'
+        const merchantTransactionId = `T${Date.now()}`;
+        
+        // Construct Payload
+        const payload = {
+            merchantId: MERCHANT_ID,
+            merchantTransactionId: merchantTransactionId,
+            merchantUserId: userId || `U${Date.now()}`,
+            amount: amount * 100, // PhonePe expects amount in paise
+            redirectUrl: `https://${req.get('host')}/status/${merchantTransactionId}`,
+            redirectMode: 'REDIRECT',
+            callbackUrl: process.env.CALLBACK_URL,
+            mobileNumber: mobileNumber,
+            paymentInstrument: {
+                type: 'PAY_PAGE'
             }
         };
 
-        const response = await axios.post(`${BASE_URL}/checkout/v2/pay`, data, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `O-Bearer ${token}`
-            }
-        });
+        const endpoint = '/pg/v1/pay';
+        const xVerify = generateChecksum(payload, endpoint);
+        const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
 
-        // Checkout v2 returns a redirect URL directly
-        const redirectUrl = response.data.redirectUrl || response.data.data?.redirectUrl;
-        res.json({ success: true, url: redirectUrl, orderId: merchantOrderId });
+        console.log(`Initiating payment for ${amount} INR...`);
+
+        const response = await axios.post(`${BASE_URL}${endpoint}`, 
+            { request: base64Payload },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-VERIFY': xVerify,
+                    'accept': 'application/json'
+                }
+            }
+        );
+
+        if (response.data.success) {
+            // Redirect URL is in response.data.data.instrumentResponse.redirectInfo.url
+            res.json({
+                success: true,
+                url: response.data.data.instrumentResponse.redirectInfo.url,
+                orderId: merchantTransactionId
+            });
+        } else {
+            res.status(400).json({ success: false, message: response.data.message });
+        }
 
     } catch (error) {
-        console.error('Payment v2 Error:', error.response ? error.response.data : error.message);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Payment initiation failed', 
-            error: error.response ? error.response.data : error.message 
-        });
+        console.error('Payment Error:', error.response ? error.response.data : error.message);
+        res.status(500).json({ success: false, message: 'Internal Server Error' });
     }
 });
 
 /**
- * Callback/Webhook endpoint (Checkout v2)
+ * Check Payment Status
+ */
+app.get('/status/:txnId', async (req, res) => {
+    try {
+        const { txnId } = req.params;
+        const endpoint = `/pg/v1/status/${MERCHANT_ID}/${txnId}`;
+        
+        // Checksum for status: SHA256(endpoint + saltKey) + "###" + saltIndex
+        const stringToHash = endpoint + SALT_KEY;
+        const sha256 = crypto.createHash('sha256').update(stringToHash).digest('hex');
+        const xVerify = `${sha256}###${SALT_INDEX}`;
+
+        const response = await axios.get(`${BASE_URL}${endpoint}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-VERIFY': xVerify,
+                'X-MERCHANT-ID': MERCHANT_ID,
+                'accept': 'application/json'
+            }
+        });
+
+        if (response.data.success && response.data.code === 'PAYMENT_SUCCESS') {
+            // Success! Redirect to GoHighLevel
+            res.redirect(process.env.REDIRECT_URL);
+        } else {
+            // Handle failure (stay on success page or show error)
+            res.send('Payment Pending or Failed. Please check again.');
+        }
+    } catch (error) {
+        console.error('Status Check Error:', error.message);
+        res.status(500).send('Error checking payment status');
+    }
+});
+
+/**
+ * Callback/Webhook endpoint (Standard Checkout)
  */
 app.post('/callback', (req, res) => {
     try {
-        // Verify Basic Auth
-        const authHeader = req.headers.authorization;
-        if (process.env.WEBHOOK_USER && process.env.WEBHOOK_PASS) {
-            const expectedAuth = 'Basic ' + Buffer.from(process.env.WEBHOOK_USER + ':' + process.env.WEBHOOK_PASS).toString('base64');
-            if (authHeader !== expectedAuth) {
-                console.warn('Unauthorized Webhook Attempt detected!');
-                return res.status(401).send('Unauthorized');
-            }
+        // PhonePe sends base64 encoded response in body.response
+        const base64Response = req.body.response;
+        if (!base64Response) return res.status(400).send('Missing response');
+
+        const decodedResponse = JSON.parse(Buffer.from(base64Response, 'base64').toString());
+        console.log('Webhook Received:', JSON.stringify(decodedResponse, null, 2));
+
+        if (decodedResponse.success && decodedResponse.code === 'PAYMENT_SUCCESS') {
+            console.log('Payment Verified for Transaction:', decodedResponse.data.merchantTransactionId);
         }
 
-        console.log('Payment Callback Received (v2):', JSON.stringify(req.body, null, 2));
-        
-        // In v2, PhonePe sends a JSON body with event and payload
-        const { event, payload } = req.body;
-        
-        const isSuccess = event === 'checkout.order.completed' || 
-                         event === 'pg.order.completed' || 
-                         event === 'paylink.order.completed';
-
-        if (isSuccess && payload.state === 'COMPLETED') {
-            console.log('Payment Successful for Order:', payload.merchantOrderId || payload.merchantTransactionId);
-            // Business logic here (e.g. update DB, fulfill order)
-            return res.status(200).send('OK');
-        }
-
-        console.log('Processed event:', event, 'State:', payload?.state);
-        // Always return 200 to acknowledge receipt
         res.status(200).send('OK');
-
     } catch (error) {
         console.error('Callback Error:', error.message);
         res.status(500).send('Error');
     }
-});
-
-/**
- * Check Order Status (Checkout v2)
- */
-app.get('/status/:orderId', async (req, res) => {
-    try {
-        const { orderId } = req.params;
-        const token = await getAccessToken();
-
-        const response = await axios.get(`${BASE_URL}/checkout/v2/order/${orderId}/status`, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `O-Bearer ${token}`
-            }
-        });
-
-        res.json(response.data);
-
-    } catch (error) {
-        console.error('Status v2 Error:', error.response ? error.response.data : error.message);
-        res.status(500).json({ success: false, message: 'Status check failed' });
-    }
-});
-
-app.get('/', (req, res) => {
-    res.send('PhonePe Checkout v2 Service Running');
 });
 
 app.listen(PORT, () => {

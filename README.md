@@ -13,13 +13,11 @@ This project is a ready-to-deploy Node.js service that integrates the PhonePe Pa
 ### 2. Railway Deployment
 1. Connect your GitHub repository to [Railway](https://railway.app/).
 2. Add the following Environment Variables in Railway:
-   - `CLIENT_ID`: Your PhonePe Client ID.
-   - `CLIENT_SECRET`: Your PhonePe Client Secret.
    - `MERCHANT_ID`: Your PhonePe Merchant ID.
+   - `SALT_KEY`: Your PhonePe Salt Key.
+   - `SALT_INDEX`: Your Salt Index (usually 1).
    - `REDIRECT_URL`: `https://api.leadconnectorhq.com/widget/booking/JQluA6Wuu6YhqojWYNtK`
    - `CALLBACK_URL`: `https://counsel.soulhealingwithayessha.com/callback`
-   - `WEBHOOK_USER`: Your picked Webhook Username.
-   - `WEBHOOK_PASS`: Your picked Webhook Password.
    - `PHONEPE_ENV`: `production` (or `sandbox` for testing)
 3. Railway will automatically detect the `Procfile` and `package.json` and deploy.
 
