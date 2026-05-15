@@ -91,23 +91,22 @@ app.post('/pay', async (req, res) => {
         const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
 
         const payload = {
-            merchantId: CLIENT_ID, // Use Client ID here for v2
             merchantOrderId: orderId,
             amount: amount * 100, // paise
-            mobileNumber: cleanMobile,
-            userId: userId || `U${Date.now()}`,
-            redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`,
-            redirectMode: 'REDIRECT',
-            callbackUrl: process.env.CALLBACK_URL,
-            paymentInstrument: {
-                type: 'PAY_PAGE'
+            paymentFlow: {
+                type: 'PG_CHECKOUT',
+                merchantUrls: {
+                    redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`
+                }
+            },
+            // Optional but good for tracking
+            metaInfo: {
+                mobileNumber: cleanMobile,
+                userId: userId || `U${Date.now()}`
             }
         };
 
-        console.log('Sending Payment Payload:', JSON.stringify({
-            ...payload,
-            mobileNumber: '******' + (mobileNumber ? mobileNumber.slice(-4) : '')
-        }, null, 2));
+        console.log('Sending v2 Payload:', JSON.stringify(payload, null, 2));
 
         const response = await axios.post(`${BASE_URL}/checkout/v2/pay`, payload, {
             headers: {
