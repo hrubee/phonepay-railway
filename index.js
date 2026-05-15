@@ -48,17 +48,16 @@ async function getAccessToken() {
     }
 
     try {
-        // Strict encoding and order as per docs
+        const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
         const params = new URLSearchParams();
         params.append('grant_type', 'client_credentials');
-        params.append('client_id', CLIENT_ID);
-        params.append('client_secret', CLIENT_SECRET);
         params.append('client_version', CLIENT_VERSION);
 
-        console.log(`Requesting token from: ${AUTH_URL}`);
+        console.log(`Requesting token from: ${AUTH_URL} using Basic Auth`);
         
         const response = await axios.post(AUTH_URL, params, {
             headers: { 
+                'Authorization': `Basic ${auth}`,
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Accept': 'application/json'
             }
