@@ -126,12 +126,17 @@ app.post('/callback', (req, res) => {
         // In v2, PhonePe sends a JSON body with event and payload
         const { event, payload } = req.body;
         
-        if (event === 'checkout.order.completed' && payload.state === 'COMPLETED') {
-            console.log('Payment Successful for Order:', payload.merchantOrderId);
+        const isSuccess = event === 'checkout.order.completed' || 
+                         event === 'pg.order.completed' || 
+                         event === 'paylink.order.completed';
+
+        if (isSuccess && payload.state === 'COMPLETED') {
+            console.log('Payment Successful for Order:', payload.merchantOrderId || payload.merchantTransactionId);
             // Business logic here (e.g. update DB, fulfill order)
             return res.status(200).send('OK');
         }
 
+        console.log('Processed event:', event, 'State:', payload?.state);
         // Always return 200 to acknowledge receipt
         res.status(200).send('OK');
 
