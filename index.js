@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Deployment Timestamp: 2026-05-15 18:07
+// Deployment Timestamp: 2026-05-15 18:13
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -88,11 +88,9 @@ app.post('/pay', async (req, res) => {
             merchantUserId: userId || `U${Date.now()}`,
             mobileNumber: cleanMobile,
             redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`,
-            redirectMode: 'REDIRECT',
-            callbackUrl: process.env.CALLBACK_URL,
-            paymentInstrument: {
-                type: 'PAY_PAGE'
-            }
+            redirectMode: 'POST',
+            callbackUrl: process.env.CALLBACK_URL
+            // OMITTING paymentInstrument for v2 default flow
         };
 
         console.log(`Initiating Payment for ${MERCHANT_ID} / ${orderId}`);
