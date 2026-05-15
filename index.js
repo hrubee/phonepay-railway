@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Deployment Timestamp: 2026-05-15 17:33
+// Deployment Timestamp: 2026-05-15 17:55
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -37,15 +37,11 @@ let cachedToken = null;
 let tokenExpiry = 0;
 
 /**
- * Fetch OAuth Access Token (O-Bearer)
+ * Fetch OAuth Access Token
  */
 async function getAccessToken() {
     if (cachedToken && Date.now() < tokenExpiry - 60000) {
         return cachedToken;
-    }
-
-    if (!CLIENT_ID || !CLIENT_SECRET) {
-        throw new Error('Missing CLIENT_ID or CLIENT_SECRET');
     }
 
     try {
@@ -68,17 +64,13 @@ async function getAccessToken() {
         tokenExpiry = Date.now() + (response.data.expires_in * 1000);
         return cachedToken;
     } catch (error) {
-        if (error.response) {
-            console.error('OAuth Token Detailed Error:', JSON.stringify(error.response.data, null, 2));
-        } else {
-            console.error('OAuth Token Error:', error.message);
-        }
+        console.error('OAuth Token Error:', error.response ? error.response.data : error.message);
         throw new Error('Failed to obtain PhonePe O-Bearer token');
     }
 }
 
 /**
- * Initiate Payment (Checkout v2)
+ * Initiate Payment (V2 Standard OAuth Flow)
  */
 app.post('/pay', async (req, res) => {
     try {
@@ -86,73 +78,77 @@ app.post('/pay', async (req, res) => {
         const accessToken = await getAccessToken();
 
         const orderId = `O${Date.now()}`;
-        
-        // Clean mobile number (remove any non-digits, take last 10)
         const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
 
+        // Correct V2 Payload Structure
         const payload = {
-            merchantId: MERCHANT_ID, // Use the M23... ID here
+            merchantId: MERCHANT_ID,
             merchantOrderId: orderId,
             amount: amount * 100, // paise
-            paymentFlow: {
-                type: 'CHECKOUT', // Alternative type
-                merchantUrls: {
-                    redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`
-                }
-            },
-            // Metadata
-            metaInfo: {
-                mobileNumber: cleanMobile,
-                userId: userId || `U${Date.now()}`
+            merchantUserId: userId || `U${Date.now()}`,
+            mobileNumber: cleanMobile,
+            redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`,
+            redirectMode: 'REDIRECT',
+            callbackUrl: process.env.CALLBACK_URL,
+            paymentInstrument: {
+                type: 'PAY_PAGE'
             }
         };
 
-        console.log('Sending v2 Payload:', JSON.stringify(payload, null, 2));
+        console.log(`Initiating Payment for ${MERCHANT_ID} / ${orderId}`);
 
         const response = await axios.post(`${BASE_URL}/checkout/v2/pay`, payload, {
             headers: {
                 'Authorization': `O-Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
+                'X-MERCHANT-ID': MERCHANT_ID, // MANDATORY HEADER
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             }
         });
 
         if (response.data.success) {
-            // In v2, the redirect URL is directly in response.data.data.redirectUrl
+            // Redirect URL can be in different spots depending on exact account type, handling both:
+            const redirectUrl = response.data.data.redirectUrl || 
+                               (response.data.data.instrumentResponse && 
+                                response.data.data.instrumentResponse.redirectInfo && 
+                                response.data.data.instrumentResponse.redirectInfo.url);
+
             res.json({
                 success: true,
-                url: response.data.data.redirectUrl,
+                url: redirectUrl,
                 orderId: orderId
             });
         } else {
-            console.error('PhonePe Rejection Detail:', JSON.stringify(response.data, null, 2));
+            console.error('PhonePe Rejection:', JSON.stringify(response.data, null, 2));
             res.status(400).json({ success: false, message: response.data.message, debug: response.data });
         }
 
     } catch (error) {
-        console.error('Payment v2 Error:', error.response ? error.response.data : error.message);
-        res.status(500).json({ success: false, message: error.message });
+        console.error('Payment Error:', error.response ? error.response.data : error.message);
+        res.status(500).json({ success: false, message: 'Payment Initialization Failed' });
     }
 });
 
 /**
- * Check Status (Checkout v2)
+ * Check Status
  */
 app.get('/status/:orderId', async (req, res) => {
     try {
         const { orderId } = req.params;
         const accessToken = await getAccessToken();
 
-        const response = await axios.get(`${BASE_URL}/checkout/v2/order/${CLIENT_ID}/${orderId}`, {
+        const response = await axios.get(`${BASE_URL}/checkout/v2/order/${MERCHANT_ID}/${orderId}`, {
             headers: {
                 'Authorization': `O-Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
+                'X-MERCHANT-ID': MERCHANT_ID,
+                'Accept': 'application/json'
             }
         });
 
         if (response.data.success && response.data.data.state === 'COMPLETED') {
             res.redirect(process.env.REDIRECT_URL);
         } else {
-            res.send(`Payment State: ${response.data.data.state}. If success, you will be redirected shortly.`);
+            res.send(`Payment Status: ${response.data.data.state}. If paid, you will be redirected shortly.`);
         }
     } catch (error) {
         console.error('Status Error:', error.message);
@@ -161,16 +157,11 @@ app.get('/status/:orderId', async (req, res) => {
 });
 
 /**
- * Webhook (Checkout v2)
+ * Webhook Callback
  */
 app.post('/callback', (req, res) => {
-    try {
-        console.log('Webhook Received:', JSON.stringify(req.body, null, 2));
-        // Basic Auth check omitted for simplicity during debugging, but recommended later
-        res.status(200).send('OK');
-    } catch (error) {
-        res.status(500).send('Error');
-    }
+    console.log('Webhook Received:', JSON.stringify(req.body, null, 2));
+    res.status(200).send('OK');
 });
 
 app.listen(PORT, () => {
