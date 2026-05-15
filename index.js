@@ -28,7 +28,7 @@ const BASE_URL = IS_PRODUCTION
     : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
 
 const AUTH_URL = IS_PRODUCTION
-    ? 'https://api.phonepe.com/apis/identity-manager/v1/oauth/token'
+    ? 'https://api.phonepe.com/apis/hermes/v1/oauth/token'
     : 'https://api-preprod.phonepe.com/apis/pg-sandbox/identity-manager/v1/oauth/token';
 
 // Token Cache
