@@ -87,11 +87,14 @@ app.post('/pay', async (req, res) => {
 
         const orderId = `O${Date.now()}`;
         
+        // Clean mobile number (remove any non-digits, take last 10)
+        const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
+
         const payload = {
-            merchantId: MERCHANT_ID,
+            merchantId: CLIENT_ID, // Use Client ID here for v2
             merchantOrderId: orderId,
             amount: amount * 100, // paise
-            mobileNumber: mobileNumber,
+            mobileNumber: cleanMobile,
             userId: userId || `U${Date.now()}`,
             redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`,
             redirectMode: 'REDIRECT',
