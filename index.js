@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Deployment Timestamp: 2026-05-15 19:05
+// Deployment Timestamp: 2026-05-15 19:10
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -81,10 +81,15 @@ app.post('/pay', async (req, res) => {
         const orderId = `MT${Date.now()}${Math.floor(Math.random() * 100)}`; // 18+ characters
         const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
 
+        const amountInt = parseInt(amount, 10);
+        if (!amountInt || isNaN(amountInt)) {
+            return res.status(400).json({ success: false, message: 'Invalid amount' });
+        }
+
         const payload = {
             merchantId: MERCHANT_ID,
             merchantOrderId: orderId,
-            amount: amount * 100, // paise
+            amount: amountInt * 100, // convert to paise (integer)
             paymentFlow: {
                 type: 'PG_CHECKOUT',
                 merchantUrls: {
@@ -134,8 +139,19 @@ app.post('/pay', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('Payment Error:', error.response ? error.response.data : error.message);
-        res.status(500).json({ success: false, message: 'Payment Initialization Failed' });
+        if (error.response) {
+            // PhonePe returned an error response
+            console.error('PhonePe HTTP Error Status:', error.response.status);
+            console.error('PhonePe HTTP Error Body:', JSON.stringify(error.response.data, null, 2));
+            res.status(500).json({ 
+                success: false, 
+                message: error.response.data?.message || `PhonePe Error ${error.response.status}`,
+                debug: error.response.data
+            });
+        } else {
+            console.error('Network/Other Error:', error.message);
+            res.status(500).json({ success: false, message: error.message || 'Payment Initialization Failed' });
+        }
     }
 });
 
