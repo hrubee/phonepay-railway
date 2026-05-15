@@ -95,7 +95,7 @@ app.post('/pay', async (req, res) => {
             merchantOrderId: orderId,
             amount: amount * 100, // paise
             paymentFlow: {
-                type: 'PG_CHECKOUT',
+                type: 'CHECKOUT', // Alternative type
                 merchantUrls: {
                     redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`
                 }
@@ -124,7 +124,8 @@ app.post('/pay', async (req, res) => {
                 orderId: orderId
             });
         } else {
-            res.status(400).json({ success: false, message: response.data.message });
+            console.error('PhonePe Rejection Detail:', JSON.stringify(response.data, null, 2));
+            res.status(400).json({ success: false, message: response.data.message, debug: response.data });
         }
 
     } catch (error) {
