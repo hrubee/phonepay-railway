@@ -53,14 +53,15 @@ async function getAccessToken() {
         const params = new URLSearchParams();
         params.append('client_id', CLIENT_ID);
         params.append('client_secret', CLIENT_SECRET);
-        params.append('client_version', CLIENT_VERSION);
         params.append('grant_type', 'client_credentials');
 
         console.log(`OAuth Request to: ${AUTH_URL}`);
-        console.log(`Params: client_id=${CLIENT_ID.substring(0, 5)}..., client_version=${CLIENT_VERSION}, grant_type=client_credentials`);
         
         const response = await axios.post(AUTH_URL, params, {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            headers: { 
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CLIENT-ID': CLIENT_ID
+            }
         });
 
         cachedToken = response.data.access_token;
