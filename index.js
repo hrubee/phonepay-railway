@@ -40,13 +40,9 @@ async function getAccessToken() {
     }
 
     try {
-        const params = new URLSearchParams();
-        params.append('client_id', CLIENT_ID);
-        params.append('client_secret', CLIENT_SECRET);
-        params.append('client_version', CLIENT_VERSION);
-        params.append('grant_type', 'client_credentials');
+        const payload = `client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&client_version=${CLIENT_VERSION}&grant_type=client_credentials`;
 
-        const response = await axios.post(AUTH_URL, params, {
+        const response = await axios.post(AUTH_URL, payload, {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
 
@@ -54,7 +50,11 @@ async function getAccessToken() {
         tokenExpiry = Date.now() + (response.data.expires_in * 1000);
         return cachedToken;
     } catch (error) {
-        console.error('OAuth Token Error:', error.response ? error.response.data : error.message);
+        if (error.response) {
+            console.error('OAuth Token Detailed Error:', JSON.stringify(error.response.data, null, 2));
+        } else {
+            console.error('OAuth Token Error:', error.message);
+        }
         throw new Error('Failed to obtain PhonePe O-Bearer token');
     }
 }
