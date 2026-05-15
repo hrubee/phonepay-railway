@@ -116,9 +116,10 @@ app.post('/pay', async (req, res) => {
         });
 
         if (response.data.success) {
+            // In v2, the redirect URL is directly in response.data.data.redirectUrl
             res.json({
                 success: true,
-                url: response.data.data.instrumentResponse.redirectInfo.url,
+                url: response.data.data.redirectUrl,
                 orderId: orderId
             });
         } else {
