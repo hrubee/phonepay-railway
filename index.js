@@ -25,7 +25,7 @@ const BASE_URL = IS_PRODUCTION
 
 const AUTH_URL = IS_PRODUCTION
     ? 'https://api.phonepe.com/apis/identity-manager/v1/oauth/token'
-    : 'https://api-preprod.phonepe.com/apis/pg-sandbox/v1/oauth/token';
+    : 'https://api-preprod.phonepe.com/apis/pg-sandbox/identity-manager/v1/oauth/token';
 
 // Token Cache
 let cachedToken = null;
@@ -52,6 +52,9 @@ async function getAccessToken() {
         params.append('client_version', CLIENT_VERSION);
         params.append('grant_type', 'client_credentials');
 
+        console.log(`OAuth Request to: ${AUTH_URL}`);
+        console.log(`Params: client_id=${CLIENT_ID.substring(0, 5)}..., client_version=${CLIENT_VERSION}, grant_type=client_credentials`);
+        
         const response = await axios.post(AUTH_URL, params, {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
