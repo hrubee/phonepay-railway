@@ -111,6 +111,16 @@ app.post('/pay', async (req, res) => {
  */
 app.post('/callback', (req, res) => {
     try {
+        // Verify Basic Auth
+        const authHeader = req.headers.authorization;
+        if (process.env.WEBHOOK_USER && process.env.WEBHOOK_PASS) {
+            const expectedAuth = 'Basic ' + Buffer.from(process.env.WEBHOOK_USER + ':' + process.env.WEBHOOK_PASS).toString('base64');
+            if (authHeader !== expectedAuth) {
+                console.warn('Unauthorized Webhook Attempt detected!');
+                return res.status(401).send('Unauthorized');
+            }
+        }
+
         console.log('Payment Callback Received (v2):', JSON.stringify(req.body, null, 2));
         
         // In v2, PhonePe sends a JSON body with event and payload

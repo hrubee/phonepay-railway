@@ -16,8 +16,10 @@ This project is a ready-to-deploy Node.js service that integrates the PhonePe Pa
    - `CLIENT_ID`: Your PhonePe Client ID.
    - `CLIENT_SECRET`: Your PhonePe Client Secret.
    - `MERCHANT_ID`: Your PhonePe Merchant ID.
-   - `REDIRECT_URL`: `https://pay.soulhealingwithayessha.com/callback`
-   - `CALLBACK_URL`: `https://pay.soulhealingwithayessha.com/callback`
+   - `REDIRECT_URL`: `https://api.leadconnectorhq.com/widget/booking/JQluA6Wuu6YhqojWYNtK`
+   - `CALLBACK_URL`: `https://counsel.soulhealingwithayessha.com/callback`
+   - `WEBHOOK_USER`: Your picked Webhook Username.
+   - `WEBHOOK_PASS`: Your picked Webhook Password.
    - `PHONEPE_ENV`: `production` (or `sandbox` for testing)
 3. Railway will automatically detect the `Procfile` and `package.json` and deploy.
 
