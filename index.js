@@ -39,10 +39,20 @@ async function getAccessToken() {
         return cachedToken;
     }
 
-    try {
-        const payload = `client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&client_version=${CLIENT_VERSION}&grant_type=client_credentials`;
+    if (!CLIENT_ID || CLIENT_ID === 'YOUR_CLIENT_ID' || !CLIENT_SECRET || CLIENT_SECRET === 'YOUR_CLIENT_SECRET') {
+        console.error('CRITICAL: PhonePe Credentials are missing or using placeholders!');
+        console.error('Check your Railway Variables tab.');
+        throw new Error('Missing Credentials');
+    }
 
-        const response = await axios.post(AUTH_URL, payload, {
+    try {
+        const params = new URLSearchParams();
+        params.append('client_id', CLIENT_ID);
+        params.append('client_secret', CLIENT_SECRET);
+        params.append('client_version', CLIENT_VERSION);
+        params.append('grant_type', 'client_credentials');
+
+        const response = await axios.post(AUTH_URL, params, {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
 
