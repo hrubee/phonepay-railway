@@ -50,8 +50,8 @@ async function getAccessToken() {
     }
 
     try {
-        // Some servers are sensitive to parameter order - grant_type first
-        const payload = `grant_type=client_credentials&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&client_version=${CLIENT_VERSION}`;
+        // Strict URL encoding for all parameters
+        const payload = `grant_type=client_credentials&client_id=${encodeURIComponent(CLIENT_ID)}&client_secret=${encodeURIComponent(CLIENT_SECRET)}&client_version=${encodeURIComponent(CLIENT_VERSION)}`;
 
         console.log(`OAuth Request to: ${AUTH_URL}`);
         
