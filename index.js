@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Deployment Timestamp: 2026-05-15 18:20
+// Deployment Timestamp: 2026-05-15 18:31
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -96,9 +96,10 @@ app.post('/pay', async (req, res) => {
             }
         };
 
-        console.log(`Initiating Hybrid Payment for ${MERCHANT_ID} / ${orderId}`);
+        const payUrl = `https://api.phonepe.com/apis/hermes/pg/v1/pay`;
+        console.log(`Initiating Hybrid Payment at: ${payUrl}`);
 
-        const response = await axios.post(`${BASE_URL}/v1/pay`, payload, {
+        const response = await axios.post(payUrl, payload, {
             headers: {
                 'Authorization': `O-Bearer ${accessToken}`,
                 'X-MERCHANT-ID': MERCHANT_ID,
