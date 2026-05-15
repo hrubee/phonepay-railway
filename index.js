@@ -13,12 +13,12 @@ app.use(express.static('public'));
 const PORT = process.env.PORT || 3000;
 
 // PhonePe Checkout v2 Config
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const CLIENT_VERSION = process.env.CLIENT_VERSION || '1';
-const MERCHANT_ID = process.env.MERCHANT_ID;
+const CLIENT_ID = (process.env.CLIENT_ID || '').replace(/['"]/g, '').trim();
+const CLIENT_SECRET = (process.env.CLIENT_SECRET || '').replace(/['"]/g, '').trim();
+const CLIENT_VERSION = (process.env.CLIENT_VERSION || '1').replace(/['"]/g, '').trim();
+const MERCHANT_ID = (process.env.MERCHANT_ID || '').replace(/['"]/g, '').trim();
 
-const PHONEPE_ENV = (process.env.PHONEPE_ENV || 'sandbox').trim().toLowerCase();
+const PHONEPE_ENV = (process.env.PHONEPE_ENV || 'sandbox').replace(/['"]/g, '').trim().toLowerCase();
 const IS_PRODUCTION = PHONEPE_ENV === 'production';
 
 console.log(`[PhonePe v2] Running in ${IS_PRODUCTION ? 'PRODUCTION' : 'SANDBOX'} mode`);
@@ -28,7 +28,7 @@ const BASE_URL = IS_PRODUCTION
     : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
 
 const AUTH_URL = IS_PRODUCTION
-    ? 'https://api.phonepe.com/apis/hermes/v1/oauth/token'
+    ? 'https://api.phonepe.com/apis/identity-manager/v1/oauth/token'
     : 'https://api-preprod.phonepe.com/apis/pg-sandbox/identity-manager/v1/oauth/token';
 
 // Token Cache
@@ -48,16 +48,16 @@ async function getAccessToken() {
     }
 
     try {
-        const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
         const params = new URLSearchParams();
         params.append('grant_type', 'client_credentials');
+        params.append('client_id', CLIENT_ID);
+        params.append('client_secret', CLIENT_SECRET);
         params.append('client_version', CLIENT_VERSION);
 
-        console.log(`Requesting token from: ${AUTH_URL} using Basic Auth`);
+        console.log(`Requesting token from: ${AUTH_URL}`);
         
         const response = await axios.post(AUTH_URL, params, {
             headers: { 
-                'Authorization': `Basic ${auth}`,
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Accept': 'application/json'
             }
