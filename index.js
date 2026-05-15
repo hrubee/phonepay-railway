@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3000;
 // PhonePe Checkout v2 Config
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const CLIENT_VERSION = process.env.CLIENT_VERSION || 'v1';
+const CLIENT_VERSION = process.env.CLIENT_VERSION || '1';
 const MERCHANT_ID = process.env.MERCHANT_ID;
 
 const PHONEPE_ENV = (process.env.PHONEPE_ENV || 'sandbox').trim().toLowerCase();
