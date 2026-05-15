@@ -91,6 +91,7 @@ app.post('/pay', async (req, res) => {
         const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
 
         const payload = {
+            merchantId: MERCHANT_ID, // Use the M23... ID here
             merchantOrderId: orderId,
             amount: amount * 100, // paise
             paymentFlow: {
@@ -99,7 +100,7 @@ app.post('/pay', async (req, res) => {
                     redirectUrl: `https://counsel.soulhealingwithayessha.com/status/${orderId}`
                 }
             },
-            // Optional but good for tracking
+            // Metadata
             metaInfo: {
                 mobileNumber: cleanMobile,
                 userId: userId || `U${Date.now()}`
