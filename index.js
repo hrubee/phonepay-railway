@@ -140,7 +140,7 @@ app.get('/status/:orderId', async (req, res) => {
         const { orderId } = req.params;
         const accessToken = await getAccessToken();
 
-        const response = await axios.get(`${BASE_URL}/checkout/v2/order/${MERCHANT_ID}/${orderId}`, {
+        const response = await axios.get(`${BASE_URL}/checkout/v2/order/${CLIENT_ID}/${orderId}`, {
             headers: {
                 'Authorization': `O-Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
