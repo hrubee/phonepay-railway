@@ -1,5 +1,5 @@
 require('dotenv').config();
-// Deployment Timestamp: 2026-05-15 18:51
+// Deployment Timestamp: 2026-05-15 19:05
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -110,12 +110,18 @@ app.post('/pay', async (req, res) => {
             }
         });
 
-        if (response.data.success) {
-            // Redirect URL can be in different spots depending on exact account type, handling both:
-            const redirectUrl = response.data.data.redirectUrl || 
-                               (response.data.data.instrumentResponse && 
+        if (response.data.redirectUrl || response.data.state === 'PENDING' || response.data.success) {
+            // In v2, the redirect URL is often directly in the root of response.data
+            const redirectUrl = response.data.redirectUrl || 
+                               (response.data.data && response.data.data.redirectUrl) ||
+                               (response.data.data && response.data.data.instrumentResponse && 
                                 response.data.data.instrumentResponse.redirectInfo && 
                                 response.data.data.instrumentResponse.redirectInfo.url);
+
+            if (!redirectUrl) {
+                console.error('No redirect URL found in success response:', response.data);
+                return res.status(400).json({ success: false, message: 'Payment link missing' });
+            }
 
             res.json({
                 success: true,
@@ -123,8 +129,8 @@ app.post('/pay', async (req, res) => {
                 orderId: orderId
             });
         } else {
-            console.error('PhonePe Rejection:', JSON.stringify(response.data, null, 2));
-            res.status(400).json({ success: false, message: response.data.message, debug: response.data });
+            console.error('PhonePe Response (Non-Success):', JSON.stringify(response.data, null, 2));
+            res.status(400).json({ success: false, message: response.data.message || 'Payment initiation failed', debug: response.data });
         }
 
     } catch (error) {
