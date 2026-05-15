@@ -50,17 +50,15 @@ async function getAccessToken() {
     }
 
     try {
-        const params = new URLSearchParams();
-        params.append('client_id', CLIENT_ID);
-        params.append('client_version', CLIENT_VERSION);
-        params.append('client_secret', CLIENT_SECRET);
-        params.append('grant_type', 'client_credentials');
+        // Some servers are sensitive to parameter order - grant_type first
+        const payload = `grant_type=client_credentials&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&client_version=${CLIENT_VERSION}`;
 
         console.log(`OAuth Request to: ${AUTH_URL}`);
         
-        const response = await axios.post(AUTH_URL, params, {
+        const response = await axios.post(AUTH_URL, payload, {
             headers: { 
-                'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json'
             }
         });
 
