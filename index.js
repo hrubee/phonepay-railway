@@ -15,6 +15,19 @@ const PORT = process.env.PORT || 3000;
 const GHL_WEBHOOK_URL = (process.env.GHL_WEBHOOK_URL || 'https://services.leadconnectorhq.com/hooks/XFzztkrNXWJ5DBXeVZIZ/webhook-trigger/e8cfd0ec-71d6-4bcc-92f4-ba723bb573ff').replace(/['"]/g, '').trim();
 const SUCCESS_REDIRECT_URL = (process.env.REDIRECT_URL || 'https://api.leadconnectorhq.com/widget/booking/JQluA6Wuu6YhqojWYNtK').replace(/['"]/g, '').trim();
 
+const PRODUCTS = {
+    consultation: {
+        id: 'consultation',
+        service: 'Soul Healing Consultation',
+        amount: 8000
+    },
+    'relationship-guide': {
+        id: 'relationship-guide',
+        service: 'Relationship Guide',
+        amount: 200
+    }
+};
+
 // PhonePe Checkout v2 Config
 const CLIENT_ID = (process.env.CLIENT_ID || '').replace(/['"]/g, '').trim();
 const CLIENT_SECRET = (process.env.CLIENT_SECRET || '').replace(/['"]/g, '').trim();
@@ -38,6 +51,10 @@ const AUTH_URL = IS_PRODUCTION
 let cachedToken = null;
 let tokenExpiry = 0;
 const orders = new Map();
+
+app.get('/relationship-guide', (req, res) => {
+    res.sendFile(`${__dirname}/public/index.html`);
+});
 
 /**
  * Fetch OAuth Access Token
@@ -90,7 +107,8 @@ async function sendGhlPaymentWebhook(orderId, statusData) {
         event: 'payment_success',
         payment_status: 'success',
         source: 'PhonePe',
-        service: 'Soul Healing Consultation',
+        product_id: order.productId,
+        service: order.service,
         order_id: orderId,
         amount: order.amount,
         amount_paise: order.amount * 100,
@@ -121,16 +139,17 @@ async function sendGhlPaymentWebhook(orderId, statusData) {
  */
 app.post('/pay', async (req, res) => {
     try {
-        const { amount, name, email, mobileNumber, userId } = req.body;
+        const { productId, name, email, mobileNumber, userId } = req.body;
 
         const orderId = `MT${Date.now()}${Math.floor(Math.random() * 100)}`; // 18+ characters
         const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
         const cleanName = (name || '').trim();
         const cleanEmail = (email || '').trim().toLowerCase();
+        const requestedProductId = productId || 'consultation';
+        const product = PRODUCTS[requestedProductId];
 
-        const amountInt = parseInt(amount, 10);
-        if (!amountInt || isNaN(amountInt)) {
-            return res.status(400).json({ success: false, message: 'Invalid amount' });
+        if (!product) {
+            return res.status(400).json({ success: false, message: 'Invalid product' });
         }
 
         if (!cleanName) {
@@ -146,7 +165,9 @@ app.post('/pay', async (req, res) => {
         }
 
         orders.set(orderId, {
-            amount: amountInt,
+            productId: product.id,
+            service: product.service,
+            amount: product.amount,
             name: cleanName,
             email: cleanEmail,
             phone: cleanMobile,
@@ -160,7 +181,7 @@ app.post('/pay', async (req, res) => {
         const payload = {
             merchantId: MERCHANT_ID,
             merchantOrderId: orderId,
-            amount: amountInt * 100, // convert to paise (integer)
+            amount: product.amount * 100, // convert to paise (integer)
             paymentFlow: {
                 type: 'PG_CHECKOUT',
                 merchantUrls: {
@@ -171,7 +192,9 @@ app.post('/pay', async (req, res) => {
                 mobileNumber: cleanMobile,
                 merchantUserId: orders.get(orderId).userId,
                 customerName: cleanName,
-                customerEmail: cleanEmail
+                customerEmail: cleanEmail,
+                productId: product.id,
+                service: product.service
             }
         };
 

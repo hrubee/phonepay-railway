@@ -66,12 +66,12 @@
     <div class="card">
         <div style="background: var(--primary); color: white; margin: -2rem -2rem 2rem -2rem; padding: 2rem; border-radius: 20px 20px 0 0;">
             <h2 style="margin: 0; font-size: 1.2rem; opacity: 0.9;">Payment for Ayessha Sarang</h2>
-            <h1 style="margin: 0.5rem 0 0 0; font-size: 2.5rem;">₹8,000</h1>
+            <h1 id="price" style="margin: 0.5rem 0 0 0; font-size: 2.5rem;">₹8,000</h1>
         </div>
         
         <div style="text-align: left; margin-bottom: 2rem;">
-            <h3 style="margin: 0; color: var(--text);">Soul Healing Consultation</h3>
-            <p style="margin: 0.5rem 0; color: #666; font-size: 0.9rem; line-height: 1.4;">
+            <h3 id="productTitle" style="margin: 0; color: var(--text);">Soul Healing Consultation</h3>
+            <p id="productDescription" style="margin: 0.5rem 0; color: #666; font-size: 0.9rem; line-height: 1.4;">
                 Complete your payment to schedule your session with Ayessha. Includes deep healing and personalized guidance.
             </p>
         </div>
@@ -91,18 +91,45 @@
             <input type="tel" id="mobile" placeholder="Enter 10 digit phone number" autocomplete="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" required>
         </div>
         
-        <input type="hidden" id="amount" value="8000">
+        <input type="hidden" id="productId" value="consultation">
         
         <button id="payBtn">Pay ₹8,000 Now</button>
         <div id="status" class="status"></div>
     </div>
 
     <script>
+        const products = {
+            consultation: {
+                id: 'consultation',
+                title: 'Soul Healing Consultation',
+                amount: 8000,
+                description: 'Complete your payment to schedule your session with Ayessha. Includes deep healing and personalized guidance.'
+            },
+            'relationship-guide': {
+                id: 'relationship-guide',
+                title: 'Relationship Guide',
+                amount: 200,
+                description: 'Complete your payment to receive the Relationship Guide by Ayessha Sarang.'
+            }
+        };
+
+        const currentProduct = window.location.pathname.includes('relationship-guide')
+            ? products['relationship-guide']
+            : products.consultation;
+
+        const formattedAmount = new Intl.NumberFormat('en-IN').format(currentProduct.amount);
+        document.title = `${currentProduct.title} - Payment for Ayessha Sarang`;
+        document.getElementById('price').innerText = `₹${formattedAmount}`;
+        document.getElementById('productTitle').innerText = currentProduct.title;
+        document.getElementById('productDescription').innerText = currentProduct.description;
+        document.getElementById('productId').value = currentProduct.id;
+        document.getElementById('payBtn').innerText = `Pay ₹${formattedAmount} Now`;
+
         document.getElementById('payBtn').addEventListener('click', async () => {
             const nameInput = document.getElementById('name');
             const emailInput = document.getElementById('email');
             const mobileInput = document.getElementById('mobile');
-            const amount = document.getElementById('amount').value;
+            const productId = document.getElementById('productId').value;
             const name = nameInput.value.trim();
             const email = emailInput.value.trim();
             const mobile = mobileInput.value.replace(/\D/g, '');
@@ -125,7 +152,7 @@
                 const response = await fetch('/pay', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ amount, name, email, mobileNumber: mobile })
+                    body: JSON.stringify({ productId, name, email, mobileNumber: mobile })
                 });
                 
                 const data = await response.json();
