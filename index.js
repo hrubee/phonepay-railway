@@ -25,6 +25,11 @@ const PRODUCTS = {
         id: 'relationship-guide',
         service: 'Relationship Guide',
         amount: 200
+    },
+    'alchemy-course': {
+        id: 'alchemy-course',
+        service: 'Alchemy Course',
+        amount: 2000
     }
 };
 
@@ -53,6 +58,10 @@ let tokenExpiry = 0;
 const orders = new Map();
 
 app.get('/relationship-guide', (req, res) => {
+    res.sendFile(`${__dirname}/public/index.html`);
+});
+
+app.get('/alchemy-course', (req, res) => {
     res.sendFile(`${__dirname}/public/index.html`);
 });
 

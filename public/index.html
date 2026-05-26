@@ -110,12 +110,17 @@
                 title: 'Relationship Guide',
                 amount: 200,
                 description: 'Complete your payment to receive the Relationship Guide by Ayessha Sarang.'
+            },
+            'alchemy-course': {
+                id: 'alchemy-course',
+                title: 'Alchemy Course',
+                amount: 2000,
+                description: 'Complete your payment to enroll in the Alchemy Course by Ayessha Sarang.'
             }
         };
 
-        const currentProduct = window.location.pathname.includes('relationship-guide')
-            ? products['relationship-guide']
-            : products.consultation;
+        const pathProductId = window.location.pathname.replace(/^\/|\/$/g, '');
+        const currentProduct = products[pathProductId] || products.consultation;
 
         const formattedAmount = new Intl.NumberFormat('en-IN').format(currentProduct.amount);
         document.title = `${currentProduct.title} - Payment for Ayessha Sarang`;
