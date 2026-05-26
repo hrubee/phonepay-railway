@@ -153,6 +153,10 @@ async function sendGhlPaymentWebhook(orderId, statusData) {
     console.log(`GHL payment webhook sent for ${orderId}`);
 }
 
+function getPhonePeOrderState(statusData) {
+    return statusData?.state || statusData?.data?.state || statusData?.orderStatus || statusData?.data?.orderStatus;
+}
+
 /**
  * Initiate Payment (V2 Standard OAuth Flow)
  */
@@ -290,7 +294,7 @@ app.get('/status/:orderId', async (req, res) => {
         const { orderId } = req.params;
         const accessToken = await getAccessToken();
 
-        const response = await axios.get(`${BASE_URL}/checkout/v2/order/${MERCHANT_ID}/${orderId}`, {
+        const response = await axios.get(`${BASE_URL}/checkout/v2/order/${orderId}/status`, {
             headers: {
                 'Authorization': `O-Bearer ${accessToken}`,
                 'X-MERCHANT-ID': MERCHANT_ID,
@@ -299,7 +303,9 @@ app.get('/status/:orderId', async (req, res) => {
             }
         });
 
-        if (response.data.success && response.data.data.state === 'COMPLETED') {
+        const orderState = getPhonePeOrderState(response.data);
+
+        if (orderState === 'COMPLETED') {
             try {
                 await sendGhlPaymentWebhook(orderId, response.data);
             } catch (webhookError) {
@@ -308,11 +314,11 @@ app.get('/status/:orderId', async (req, res) => {
 
             res.redirect(SUCCESS_REDIRECT_URL);
         } else {
-            res.send(`Payment Status: ${response.data.data.state}. If paid, you will be redirected shortly.`);
+            res.send(`Payment Status: ${orderState || 'UNKNOWN'}. If paid, you will be redirected shortly.`);
         }
     } catch (error) {
-        console.error('Status Error:', error.message);
-        res.status(500).send('Error checking status');
+        console.error('Status Error:', error.response ? error.response.data : error.message);
+        res.status(500).send('Error checking status. Please contact support if your payment was deducted.');
     }
 });
 
