@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PhonePe Payment Demo</title>
+    <title>Payment for Ayessha Sarang</title>
     <style>
         :root {
             --primary: #6739b7;
@@ -65,7 +65,7 @@
 <body>
     <div class="card">
         <div style="background: var(--primary); color: white; margin: -2rem -2rem 2rem -2rem; padding: 2rem; border-radius: 20px 20px 0 0;">
-            <h2 style="margin: 0; font-size: 1.2rem; opacity: 0.9;">Product Checkout</h2>
+            <h2 style="margin: 0; font-size: 1.2rem; opacity: 0.9;">Payment for Ayessha Sarang</h2>
             <h1 style="margin: 0.5rem 0 0 0; font-size: 2.5rem;">₹8,000</h1>
         </div>
         
@@ -77,8 +77,18 @@
         </div>
 
         <div class="input-group">
-            <label>Mobile Number</label>
-            <input type="tel" id="mobile" placeholder="Enter mobile number" value="9999999999">
+            <label for="name">Full Name</label>
+            <input type="text" id="name" placeholder="Enter your full name" autocomplete="name" required>
+        </div>
+
+        <div class="input-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="Enter your email" autocomplete="email" required>
+        </div>
+
+        <div class="input-group">
+            <label for="mobile">Phone Number</label>
+            <input type="tel" id="mobile" placeholder="Enter 10 digit phone number" autocomplete="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" required>
         </div>
         
         <input type="hidden" id="amount" value="8000">
@@ -89,9 +99,25 @@
 
     <script>
         document.getElementById('payBtn').addEventListener('click', async () => {
+            const nameInput = document.getElementById('name');
+            const emailInput = document.getElementById('email');
+            const mobileInput = document.getElementById('mobile');
             const amount = document.getElementById('amount').value;
-            const mobile = document.getElementById('mobile').value;
+            const name = nameInput.value.trim();
+            const email = emailInput.value.trim();
+            const mobile = mobileInput.value.replace(/\D/g, '');
             const status = document.getElementById('status');
+
+            nameInput.value = name;
+            mobileInput.value = mobile;
+
+            if (!nameInput.checkValidity() || !emailInput.checkValidity() || !mobileInput.checkValidity()) {
+                status.innerText = 'Please enter your full name, valid email, and 10 digit phone number.';
+                nameInput.reportValidity();
+                emailInput.reportValidity();
+                mobileInput.reportValidity();
+                return;
+            }
             
             status.innerText = 'Initiating payment...';
             
@@ -99,7 +125,7 @@
                 const response = await fetch('/pay', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ amount, mobileNumber: mobile })
+                    body: JSON.stringify({ amount, name, email, mobileNumber: mobile })
                 });
                 
                 const data = await response.json();

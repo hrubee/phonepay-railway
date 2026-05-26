@@ -12,6 +12,8 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
 const PORT = process.env.PORT || 3000;
+const GHL_WEBHOOK_URL = (process.env.GHL_WEBHOOK_URL || 'https://services.leadconnectorhq.com/hooks/XFzztkrNXWJ5DBXeVZIZ/webhook-trigger/e8cfd0ec-71d6-4bcc-92f4-ba723bb573ff').replace(/['"]/g, '').trim();
+const SUCCESS_REDIRECT_URL = (process.env.REDIRECT_URL || 'https://api.leadconnectorhq.com/widget/booking/JQluA6Wuu6YhqojWYNtK').replace(/['"]/g, '').trim();
 
 // PhonePe Checkout v2 Config
 const CLIENT_ID = (process.env.CLIENT_ID || '').replace(/['"]/g, '').trim();
@@ -35,6 +37,7 @@ const AUTH_URL = IS_PRODUCTION
 // Token Cache
 let cachedToken = null;
 let tokenExpiry = 0;
+const orders = new Map();
 
 /**
  * Fetch OAuth Access Token
@@ -70,21 +73,89 @@ async function getAccessToken() {
     }
 }
 
+async function sendGhlPaymentWebhook(orderId, statusData) {
+    const order = orders.get(orderId);
+
+    if (!order) {
+        console.warn(`No local order details found for ${orderId}; skipping GHL webhook`);
+        return;
+    }
+
+    if (order.ghlWebhookSent) {
+        console.log(`GHL webhook already sent for ${orderId}`);
+        return;
+    }
+
+    const payload = {
+        event: 'payment_success',
+        payment_status: 'success',
+        source: 'PhonePe',
+        service: 'Soul Healing Consultation',
+        order_id: orderId,
+        amount: order.amount,
+        amount_paise: order.amount * 100,
+        name: order.name,
+        email: order.email,
+        phone: order.phone,
+        phonepe_status: statusData?.data?.state || 'COMPLETED',
+        phonepe_transaction_id: statusData?.data?.transactionId || null,
+        created_at: order.createdAt,
+        paid_at: new Date().toISOString()
+    };
+
+    await axios.post(GHL_WEBHOOK_URL, payload, {
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        timeout: 10000
+    });
+
+    order.ghlWebhookSent = true;
+    orders.set(orderId, order);
+    console.log(`GHL payment webhook sent for ${orderId}`);
+}
+
 /**
  * Initiate Payment (V2 Standard OAuth Flow)
  */
 app.post('/pay', async (req, res) => {
     try {
-        const { amount, mobileNumber, userId } = req.body;
-        const accessToken = await getAccessToken();
+        const { amount, name, email, mobileNumber, userId } = req.body;
 
         const orderId = `MT${Date.now()}${Math.floor(Math.random() * 100)}`; // 18+ characters
         const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
+        const cleanName = (name || '').trim();
+        const cleanEmail = (email || '').trim().toLowerCase();
 
         const amountInt = parseInt(amount, 10);
         if (!amountInt || isNaN(amountInt)) {
             return res.status(400).json({ success: false, message: 'Invalid amount' });
         }
+
+        if (!cleanName) {
+            return res.status(400).json({ success: false, message: 'Name is required' });
+        }
+
+        if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+            return res.status(400).json({ success: false, message: 'Valid email is required' });
+        }
+
+        if (cleanMobile.length !== 10) {
+            return res.status(400).json({ success: false, message: 'Valid 10 digit phone number is required' });
+        }
+
+        orders.set(orderId, {
+            amount: amountInt,
+            name: cleanName,
+            email: cleanEmail,
+            phone: cleanMobile,
+            userId: userId || `U${Date.now()}`,
+            ghlWebhookSent: false,
+            createdAt: new Date().toISOString()
+        });
+
+        const accessToken = await getAccessToken();
 
         const payload = {
             merchantId: MERCHANT_ID,
@@ -98,7 +169,9 @@ app.post('/pay', async (req, res) => {
             },
             metaInfo: {
                 mobileNumber: cleanMobile,
-                merchantUserId: userId || `U${Date.now()}`
+                merchantUserId: orders.get(orderId).userId,
+                customerName: cleanName,
+                customerEmail: cleanEmail
             }
         };
 
@@ -173,7 +246,13 @@ app.get('/status/:orderId', async (req, res) => {
         });
 
         if (response.data.success && response.data.data.state === 'COMPLETED') {
-            res.redirect(process.env.REDIRECT_URL);
+            try {
+                await sendGhlPaymentWebhook(orderId, response.data);
+            } catch (webhookError) {
+                console.error('GHL Webhook Error:', webhookError.response ? webhookError.response.data : webhookError.message);
+            }
+
+            res.redirect(SUCCESS_REDIRECT_URL);
         } else {
             res.send(`Payment Status: ${response.data.data.state}. If paid, you will be redirected shortly.`);
         }
