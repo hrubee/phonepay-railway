@@ -60,6 +60,12 @@
         }
         button:hover { background-color: var(--primary-hover); }
         .status { margin-top: 1rem; font-size: 0.9rem; }
+        .discount-note {
+            color: #1f7a3a;
+            display: none;
+            font-size: 0.85rem;
+            margin-top: 0.4rem;
+        }
     </style>
 </head>
 <body>
@@ -90,6 +96,12 @@
             <label for="mobile">Phone Number</label>
             <input type="tel" id="mobile" placeholder="Enter 10 digit phone number" autocomplete="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" required>
         </div>
+
+        <div class="input-group">
+            <label for="promoCode">Promo Code</label>
+            <input type="text" id="promoCode" placeholder="Enter promo code if you have one" autocomplete="off">
+            <div id="discountNote" class="discount-note">Promo applied. Consultation price reduced to ₹1.</div>
+        </div>
         
         <input type="hidden" id="productId" value="consultation">
         
@@ -118,23 +130,51 @@
                 description: 'Complete your payment to enroll in the Alchemy Course by Ayessha Sarang.'
             }
         };
+        const promoCodes = {
+            AYESSHA1: {
+                productId: 'consultation',
+                discountedAmount: 1
+            }
+        };
 
         const pathProductId = window.location.pathname.replace(/^\/|\/$/g, '');
         const currentProduct = products[pathProductId] || products.consultation;
+        const promoInput = document.getElementById('promoCode');
+        const discountNote = document.getElementById('discountNote');
 
-        const formattedAmount = new Intl.NumberFormat('en-IN').format(currentProduct.amount);
+        function formatAmount(amount) {
+            return new Intl.NumberFormat('en-IN').format(amount);
+        }
+
+        function getAppliedPromo() {
+            const code = promoInput.value.replace(/\s/g, '').toUpperCase();
+            const promo = promoCodes[code];
+            return promo && promo.productId === currentProduct.id ? { code, ...promo } : null;
+        }
+
+        function renderPrice() {
+            const promo = getAppliedPromo();
+            const amount = promo ? promo.discountedAmount : currentProduct.amount;
+            const formattedAmount = formatAmount(amount);
+
+            document.getElementById('price').innerText = `₹${formattedAmount}`;
+            document.getElementById('payBtn').innerText = `Pay ₹${formattedAmount} Now`;
+            discountNote.style.display = promo ? 'block' : 'none';
+        }
+
         document.title = `${currentProduct.title} - Payment for Ayessha Sarang`;
-        document.getElementById('price').innerText = `₹${formattedAmount}`;
         document.getElementById('productTitle').innerText = currentProduct.title;
         document.getElementById('productDescription').innerText = currentProduct.description;
         document.getElementById('productId').value = currentProduct.id;
-        document.getElementById('payBtn').innerText = `Pay ₹${formattedAmount} Now`;
+        renderPrice();
+        promoInput.addEventListener('input', renderPrice);
 
         document.getElementById('payBtn').addEventListener('click', async () => {
             const nameInput = document.getElementById('name');
             const emailInput = document.getElementById('email');
             const mobileInput = document.getElementById('mobile');
             const productId = document.getElementById('productId').value;
+            const promoCode = promoInput.value.replace(/\s/g, '').toUpperCase();
             const name = nameInput.value.trim();
             const email = emailInput.value.trim();
             const mobile = mobileInput.value.replace(/\D/g, '');
@@ -157,7 +197,7 @@
                 const response = await fetch('/pay', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ productId, name, email, mobileNumber: mobile })
+                    body: JSON.stringify({ productId, promoCode, name, email, mobileNumber: mobile })
                 });
                 
                 const data = await response.json();

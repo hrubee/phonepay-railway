@@ -33,6 +33,14 @@ const PRODUCTS = {
     }
 };
 
+const PROMO_CODES = {
+    AYESSHA1: {
+        code: 'AYESSHA1',
+        productId: 'consultation',
+        discountedAmount: 1
+    }
+};
+
 // PhonePe Checkout v2 Config
 const CLIENT_ID = (process.env.CLIENT_ID || '').replace(/['"]/g, '').trim();
 const CLIENT_SECRET = (process.env.CLIENT_SECRET || '').replace(/['"]/g, '').trim();
@@ -121,6 +129,8 @@ async function sendGhlPaymentWebhook(orderId, statusData) {
         order_id: orderId,
         amount: order.amount,
         amount_paise: order.amount * 100,
+        original_amount: order.originalAmount,
+        promo_code: order.promoCode,
         name: order.name,
         email: order.email,
         phone: order.phone,
@@ -148,17 +158,23 @@ async function sendGhlPaymentWebhook(orderId, statusData) {
  */
 app.post('/pay', async (req, res) => {
     try {
-        const { productId, name, email, mobileNumber, userId } = req.body;
+        const { productId, promoCode, name, email, mobileNumber, userId } = req.body;
 
         const orderId = `MT${Date.now()}${Math.floor(Math.random() * 100)}`; // 18+ characters
         const cleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : '';
         const cleanName = (name || '').trim();
         const cleanEmail = (email || '').trim().toLowerCase();
+        const cleanPromoCode = (promoCode || '').replace(/\s/g, '').toUpperCase();
         const requestedProductId = productId || 'consultation';
         const product = PRODUCTS[requestedProductId];
+        const promo = cleanPromoCode ? PROMO_CODES[cleanPromoCode] : null;
 
         if (!product) {
             return res.status(400).json({ success: false, message: 'Invalid product' });
+        }
+
+        if (cleanPromoCode && (!promo || promo.productId !== product.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid promo code' });
         }
 
         if (!cleanName) {
@@ -173,10 +189,14 @@ app.post('/pay', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Valid 10 digit phone number is required' });
         }
 
+        const paymentAmount = promo ? promo.discountedAmount : product.amount;
+
         orders.set(orderId, {
             productId: product.id,
             service: product.service,
-            amount: product.amount,
+            amount: paymentAmount,
+            originalAmount: product.amount,
+            promoCode: promo ? promo.code : null,
             name: cleanName,
             email: cleanEmail,
             phone: cleanMobile,
@@ -190,7 +210,7 @@ app.post('/pay', async (req, res) => {
         const payload = {
             merchantId: MERCHANT_ID,
             merchantOrderId: orderId,
-            amount: product.amount * 100, // convert to paise (integer)
+            amount: paymentAmount * 100, // convert to paise (integer)
             paymentFlow: {
                 type: 'PG_CHECKOUT',
                 merchantUrls: {
@@ -203,7 +223,9 @@ app.post('/pay', async (req, res) => {
                 customerName: cleanName,
                 customerEmail: cleanEmail,
                 productId: product.id,
-                service: product.service
+                service: product.service,
+                promoCode: promo ? promo.code : '',
+                originalAmount: String(product.amount)
             }
         };
 
