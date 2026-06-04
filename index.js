@@ -69,9 +69,10 @@ const META_TEST_EVENT_CODE = (process.env.META_TEST_EVENT_CODE || '').replace(/[
 const META_ENABLED = Boolean(META_PIXEL_ID && META_CAPI_TOKEN);
 const META_EVENTS_URL = `https://graph.facebook.com/${META_GRAPH_VERSION}/${META_PIXEL_ID}/events`;
 
-// Conversion event fired on a completed payment. Standard event name + flat reported value.
+// Conversion event fired on a completed payment (standard event name). The reported value is
+// the product's list price (originalAmount): consultation 8000, relationship-guide 200,
+// alchemy-course 2000 — stays the product price even when the ₹1 promo is applied.
 const META_EVENT_NAME = 'SubmitApplication';
-const META_EVENT_VALUE = 8000; // flat value reported for every completed payment (currency INR)
 
 console.log(`[Meta CAPI] ${META_ENABLED ? 'Enabled' : 'Disabled — set META_PIXEL_ID + META_CAPI_ACCESS_TOKEN'}`);
 if (META_TEST_EVENT_CODE) {
@@ -278,7 +279,7 @@ async function sendMetaConversionEvent(orderId, statusData) {
         user_data: userData,
         custom_data: {
             currency: 'INR',
-            value: META_EVENT_VALUE,
+            value: order.originalAmount,
             content_name: order.service,
             content_ids: [order.productId].filter(Boolean),
             content_type: 'product',
@@ -315,7 +316,7 @@ function renderSuccessPage(orderId, order, redirectUrl) {
     const conversionTrack = (META_PIXEL_ID && order) ? `
       fbq('track', '${META_EVENT_NAME}', {
         currency: 'INR',
-        value: ${META_EVENT_VALUE},
+        value: ${Number(order.originalAmount) || 0},
         content_name: ${JSON.stringify(order.service)},
         content_ids: ${JSON.stringify([order.productId].filter(Boolean))},
         content_type: 'product',
