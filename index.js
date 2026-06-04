@@ -69,6 +69,10 @@ const META_TEST_EVENT_CODE = (process.env.META_TEST_EVENT_CODE || '').replace(/[
 const META_ENABLED = Boolean(META_PIXEL_ID && META_CAPI_TOKEN);
 const META_EVENTS_URL = `https://graph.facebook.com/${META_GRAPH_VERSION}/${META_PIXEL_ID}/events`;
 
+// Conversion event fired on a completed payment. Standard event name + flat reported value.
+const META_EVENT_NAME = 'SubmitApplication';
+const META_EVENT_VALUE = 8000; // flat value reported for every completed payment (currency INR)
+
 console.log(`[Meta CAPI] ${META_ENABLED ? 'Enabled' : 'Disabled — set META_PIXEL_ID + META_CAPI_ACCESS_TOKEN'}`);
 if (META_TEST_EVENT_CODE) {
     console.warn(`[Meta CAPI] TEST EVENT CODE active (${META_TEST_EVENT_CODE}) — events are TEST-ONLY. Unset META_TEST_EVENT_CODE for live tracking.`);
@@ -224,25 +228,25 @@ function extractTransactionId(data) {
 }
 
 /**
- * Fire a server-side Meta "Purchase" Conversions API event.
- * Uses event_id = orderId so it deduplicates against the browser pixel.
+ * Fire a server-side Meta Conversions API event (currently "SubmitApplication") on a
+ * completed payment. Uses event_id = orderId so it deduplicates against the browser pixel.
  * Safe to call from both /status (buyer return) and /callback (server-to-server);
  * the per-order metaEventSent flag prevents double-counting.
  */
-async function sendMetaPurchaseEvent(orderId, statusData) {
+async function sendMetaConversionEvent(orderId, statusData) {
     if (!META_ENABLED) {
-        console.log('Meta CAPI not configured; skipping Purchase event');
+        console.log(`Meta CAPI not configured; skipping ${META_EVENT_NAME} event`);
         return;
     }
 
     const order = orders.get(orderId);
     if (!order) {
-        console.warn(`No local order details found for ${orderId}; skipping Meta Purchase event`);
+        console.warn(`No local order details found for ${orderId}; skipping Meta ${META_EVENT_NAME} event`);
         return;
     }
 
     if (order.metaEventSent) {
-        console.log(`Meta Purchase event already sent for ${orderId}`);
+        console.log(`Meta ${META_EVENT_NAME} event already sent for ${orderId}`);
         return;
     }
     // Note: no synchronous claim here (unlike GHL). Meta deduplicates on event_id, so a rare
@@ -266,7 +270,7 @@ async function sendMetaPurchaseEvent(orderId, statusData) {
     Object.keys(userData).forEach((k) => userData[k] === undefined && delete userData[k]);
 
     const eventData = {
-        event_name: 'Purchase',
+        event_name: META_EVENT_NAME,
         event_time: Math.floor(Date.now() / 1000),
         event_id: orderId,
         action_source: 'website',
@@ -274,7 +278,7 @@ async function sendMetaPurchaseEvent(orderId, statusData) {
         user_data: userData,
         custom_data: {
             currency: 'INR',
-            value: order.amount,
+            value: META_EVENT_VALUE,
             content_name: order.service,
             content_ids: [order.productId].filter(Boolean),
             content_type: 'product',
@@ -297,21 +301,21 @@ async function sendMetaPurchaseEvent(orderId, statusData) {
 
     order.metaEventSent = true;
     orders.set(orderId, order);
-    console.log(`Meta Purchase event sent for ${orderId}`, JSON.stringify(response.data));
+    console.log(`Meta ${META_EVENT_NAME} event sent for ${orderId}`, JSON.stringify(response.data));
 }
 
 /**
  * Success page shown after PhonePe redirects the buyer back.
- * Fires the browser Pixel Purchase (deduped via eventID = orderId) then forwards
+ * Fires the browser Pixel conversion event (deduped via eventID = orderId) then forwards
  * the buyer to the booking widget.
  */
 function renderSuccessPage(orderId, order, redirectUrl) {
-    // Only fire the browser Purchase when we actually have the order (amount/product).
+    // Only fire the browser conversion when we actually have the order (product context).
     // Post-restart the order may be gone — fall back to PageView + redirect, no junk conversion.
-    const purchaseTrack = (META_PIXEL_ID && order) ? `
-      fbq('track', 'Purchase', {
+    const conversionTrack = (META_PIXEL_ID && order) ? `
+      fbq('track', '${META_EVENT_NAME}', {
         currency: 'INR',
-        value: ${Number(order.amount) || 0},
+        value: ${META_EVENT_VALUE},
         content_name: ${JSON.stringify(order.service)},
         content_ids: ${JSON.stringify([order.productId].filter(Boolean))},
         content_type: 'product',
@@ -323,7 +327,7 @@ function renderSuccessPage(orderId, order, redirectUrl) {
     <script>
     !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
     fbq('init', '${META_PIXEL_ID}');
-    fbq('track', 'PageView');${purchaseTrack}
+    fbq('track', 'PageView');${conversionTrack}
     </script>
     <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=PageView&noscript=1"/></noscript>
     <!-- End Meta Pixel Code -->` : '';
@@ -389,7 +393,7 @@ app.post('/pay', async (req, res) => {
         const orderId = `MT${Date.now()}${Math.floor(Math.random() * 100)}`; // 18+ characters
 
         // Capture the buyer's browser context now (while we have their request) so the
-        // Meta Purchase event has good match data no matter which path fires it later.
+        // Meta conversion event has good match data no matter which path fires it later.
         const forwardedFor = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
         const clientIp = forwardedFor || req.socket?.remoteAddress || '';
         const userAgent = req.headers['user-agent'] || '';
@@ -549,7 +553,7 @@ app.get('/status/:orderId', async (req, res) => {
             sendGhlPaymentWebhook(orderId, statusMeta).catch((webhookError) => {
                 console.error('GHL Webhook Error:', webhookError.response ? webhookError.response.data : webhookError.message);
             });
-            sendMetaPurchaseEvent(orderId, statusMeta).catch((metaError) => {
+            sendMetaConversionEvent(orderId, statusMeta).catch((metaError) => {
                 console.error('Meta CAPI Error:', metaError.response ? metaError.response.data : metaError.message);
             });
 
@@ -606,7 +610,7 @@ app.post('/callback', (req, res) => {
                     console.error('GHL Webhook Error (callback):', webhookError.response ? webhookError.response.data : webhookError.message);
                 }
                 try {
-                    await sendMetaPurchaseEvent(orderId, statusMeta);
+                    await sendMetaConversionEvent(orderId, statusMeta);
                 } catch (metaError) {
                     console.error('Meta CAPI Error (callback):', metaError.response ? metaError.response.data : metaError.message);
                 }

@@ -46,13 +46,15 @@ This bridge is designed to work as a **Custom Payment Provider** in GHL:
 5. Once paid, PhonePe redirects back to your `/callback`, which can then notify GHL of the success.
 
 ## Meta Pixel & Conversions API (Purchase tracking)
-A `Purchase` event is sent when a payment is confirmed `COMPLETED`, via **two deduplicated paths**:
-- **Browser Pixel** — fires on the `/status` success page (`fbq('track','Purchase', …, { eventID: orderId })`).
+A `SubmitApplication` event (value `8000`, currency `INR`) is sent when a payment is confirmed `COMPLETED`, via **two deduplicated paths**:
+- **Browser Pixel** — fires on the `/status` success page (`fbq('track','SubmitApplication', …, { eventID: orderId })`).
 - **Conversions API (server-side)** — sent from `index.js` to the Graph API with hashed email/phone/name + IP/UA/`_fbp`.
 
 Both use `event_id = orderId`, so Meta automatically deduplicates them. The base `PageView` pixel also runs on the checkout page (`public/index.html`) and the `/status` page.
 
-**Verify it works:** Events Manager → **Test Events**, set `META_TEST_EVENT_CODE` temporarily, complete a ₹1 test purchase (promo `AYESSHA1` on consultation), confirm a single deduplicated `Purchase` appears, then **remove `META_TEST_EVENT_CODE`**.
+The event name and reported value are set in `index.js` via `META_EVENT_NAME` / `META_EVENT_VALUE`. The value is a **flat 8000 for every completed payment** — it is not the actual amount paid, so the ₹200/₹2000 products and the ₹1 promo also report 8000.
+
+**Verify it works:** Events Manager → **Test Events**, set `META_TEST_EVENT_CODE` temporarily, complete a ₹1 test purchase (promo `AYESSHA1` on consultation), confirm a single deduplicated `SubmitApplication` appears, then **remove `META_TEST_EVENT_CODE`**.
 
 ## PhonePe Webhook (server-to-server)
 So the purchase is captured even if the buyer closes the tab before returning, `POST /callback` also fires GHL + Meta. To enable:
